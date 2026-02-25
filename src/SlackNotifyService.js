@@ -144,7 +144,8 @@ SlackNotifyService.notifyDiffResultDetailOnly = (meta) => {
 		const total = s.mod + s.add + s.del;
 
 		const maxLines = SlackNotifyService.getMaxLines_(meta);
-		const maxChars = SlackNotifyService.getMaxChars_(meta);
+		// Slack の text フィールド制限を考慮（安全側：3500 文字）
+		const maxChars = 3500;
 		const maxItems = SlackNotifyService.getMaxItems_();
 
 		// 1) 要約（1投稿）※ リンクなし形式
@@ -157,8 +158,9 @@ SlackNotifyService.notifyDiffResultDetailOnly = (meta) => {
 		);
 		LoggerUtil.info("Slack 詳細通知（sheetなし）: 要約送信完了");
 
-		// 2) 内訳（1投稿、コードブロック化）
-		// ※ 件数制限はしない。buildSingleDetailPostText_ の行数・文字数制限に任せる
+		// 2) 内訳（1投稿、単一コードブロック）
+		// 全 diff を bodyLines に集め、1つのコードブロックで表示
+		// 長い場合は自動的にコードブロック内で先頭のみ表示
 		const chunks = SlackNotifyService.buildDetailBodyChunksByDiff_(meta);
 
 		const bodyLines = [];
@@ -168,23 +170,26 @@ SlackNotifyService.notifyDiffResultDetailOnly = (meta) => {
 			});
 		});
 
-		// Warning を表示するかの判定は buildSingleDetailPostText_ の行数・文字数制限で判定させるので、
-		// ここでは空にする（ただし必要に応じて実装可能）
-		const warnLine = "";
+		// コードブロックで囲む
+		const bodyText = bodyLines.join("\n");
+		let codeBlockText = "```\n" + bodyText + "\n```";
 
-		const detailText = SlackNotifyService.buildSingleDetailPostText_({
-			prefixLines: [], // 要約は別投稿
-			warnLine: warnLine,
-			bodyLines: bodyLines,
-			maxLines: maxLines,
-			maxChars: maxChars,
-			wrapAllInCodeBlock: false,
-		});
+		// 文字数制限を適用（コードブロック終了は必ず含める）
+		let sectionHeader;
+		if (codeBlockText.length > maxChars) {
+			const cut = codeBlockText.slice(0, Math.max(0, maxChars - 100));
+			codeBlockText = cut + "\n...\n（省略：文字数制限）\n```";
+			sectionHeader = SLACK_SECTION_DETAIL + "\u3000※差分箇所が多いため内容を一部省略.";
+		} else {
+			sectionHeader = SLACK_SECTION_DETAIL + "\u3000※以下は差分の全内容.";
+		}
+
+		const detailOutput = sectionHeader + "\n" + codeBlockText;
 
 		LoggerUtil.info("Slack 詳細通知（sheetなし）: 内訳送信開始");
 		SlackNotifyService.post_(
 			webhookUrl,
-			Object.assign({}, payloadBase, { text: detailText }),
+			Object.assign({}, payloadBase, { text: detailOutput }),
 		);
 		LoggerUtil.info("Slack 詳細通知（sheetなし）: 内訳送信完了");
 	} catch (e) {
@@ -254,8 +259,9 @@ SlackNotifyService.notifyDiffResultSummaryWithUrlAndDetails = (meta) => {
 		);
 		LoggerUtil.info("Slack 統合通知: 要約（+リンク）送信完了");
 
-		// 2) 内訳（先頭N件、単一投稿）
-		// ※ 件数制限はしない。buildSingleDetailPostText_ の行数・文字数制限に任せる
+		// 2) 内訳（1投稿、単一コードブロック）
+		// 全 diff を bodyLines に集め、1つのコードブロックで表示
+		// 長い場合は自動的にコードブロック内で先頭のみ表示
 		const chunks = SlackNotifyService.buildDetailBodyChunksByDiff_(meta);
 
 		const bodyLines = [];
@@ -265,23 +271,27 @@ SlackNotifyService.notifyDiffResultSummaryWithUrlAndDetails = (meta) => {
 			});
 		});
 
-		// Warning を表示するかの判定は buildSingleDetailPostText_ の行数・文字数制限で判定させるので、
-		// ここでは空にする
-		const warnLine = "";
+		// 見出しを含めたコードブロック
+		const bodyText = bodyLines.join("\n");
+		let codeBlockText = "```\n" + bodyText + "\n```";
 
-		const detailText = SlackNotifyService.buildSingleDetailPostText_({
-			prefixLines: [], // 統合通知は要約が別投稿
-			warnLine: warnLine,
-			bodyLines: bodyLines,
-			maxLines: maxLines,
-			maxChars: maxChars,
-			wrapAllInCodeBlock: false,
-		});
+		// Slack の text フィールド制限を考慮（3500 文字）
+		const maxDetailChars = 3500;
+		let sectionHeader;
+		if (codeBlockText.length > maxDetailChars) {
+			const cut = codeBlockText.slice(0, Math.max(0, maxDetailChars - 100));
+			codeBlockText = cut + "\n...\n（省略：文字数制限）\n```";
+			sectionHeader = SLACK_SECTION_DETAIL + "\u3000※差分箇所が多いため内容を一部省略.";
+		} else {
+			sectionHeader = SLACK_SECTION_DETAIL + "\u3000※以下は差分の全内容.";
+		}
+
+		const detailOutput = sectionHeader + "\n" + codeBlockText;
 
 		LoggerUtil.info("Slack 統合通知: 内訳（単一投稿）送信開始");
 		SlackNotifyService.post_(
 			webhookUrl,
-			Object.assign({}, payloadBase, { text: detailText }),
+			Object.assign({}, payloadBase, { text: detailOutput }),
 		);
 		LoggerUtil.info("Slack 統合通知: 内訳（単一投稿）送信完了");
 
