@@ -140,48 +140,53 @@ SlackNotifyService.notifyDiffResultDetailOnly = (meta) => {
 		const payloadBase = {};
 		if (meta.channel) payloadBase.channel = meta.channel;
 
+		const s = meta.summary || { add: 0, del: 0, mod: 0 };
+		const total = s.mod + s.add + s.del;
+
 		const maxLines = SlackNotifyService.getMaxLines_(meta);
 		const maxChars = SlackNotifyService.getMaxChars_(meta);
 		const maxItems = SlackNotifyService.getMaxItems_();
 
-		const s = meta.summary || { add: 0, del: 0, mod: 0 };
-		const total = s.mod + s.add + s.del;
+		// 1) 要約（1投稿）※ リンクなし形式
+		const summaryLines = SlackNotifyService.buildSummaryLines_(meta);
+		const summaryText = summaryLines.join("\n");
+		LoggerUtil.info("Slack 詳細通知（sheetなし）: 要約送信開始");
+		SlackNotifyService.post_(
+			webhookUrl,
+			Object.assign({}, payloadBase, { text: summaryText }),
+		);
+		LoggerUtil.info("Slack 詳細通知（sheetなし）: 要約送信完了");
 
-		// prefix（要約相当）を同一投稿に含める（全文コードブロックで包む）
-		const prefixLines = SlackNotifyService.buildSummaryLines_(meta);
-
-		// 内訳（diff件数ベースで先頭N件）
+		// 2) 内訳（1投稿、コードブロック化）
+		// ※ 件数制限はしない。buildSingleDetailPostText_ の行数・文字数制限に任せる
 		const chunks = SlackNotifyService.buildDetailBodyChunksByDiff_(meta);
-		const limited =
-			chunks.length > maxItems ? chunks.slice(0, maxItems) : chunks;
 
 		const bodyLines = [];
-		limited.forEach((c) => {
+		chunks.forEach((c) => {
 			(c.lines || []).forEach((l) => {
 				bodyLines.push(l);
 			});
 		});
 
-		const warnLine =
-			chunks.length > maxItems
-				? `差分箇所が多いです（総数：${total}）。Slack の制限の都合上、先頭 ${maxItems} 件のみ出力します。`
-				: "";
+		// Warning を表示するかの判定は buildSingleDetailPostText_ の行数・文字数制限で判定させるので、
+		// ここでは空にする（ただし必要に応じて実装可能）
+		const warnLine = "";
 
-		const text = SlackNotifyService.buildSingleDetailPostText_({
-			prefixLines: prefixLines,
+		const detailText = SlackNotifyService.buildSingleDetailPostText_({
+			prefixLines: [], // 要約は別投稿
 			warnLine: warnLine,
 			bodyLines: bodyLines,
 			maxLines: maxLines,
 			maxChars: maxChars,
-			wrapAllInCodeBlock: true, // ★ 重要：要約も含めて全文を ``` ``` に入れる
+			wrapAllInCodeBlock: false,
 		});
 
-		LoggerUtil.info("Slack 詳細通知（sheetなし・単一投稿）送信開始");
+		LoggerUtil.info("Slack 詳細通知（sheetなし）: 内訳送信開始");
 		SlackNotifyService.post_(
 			webhookUrl,
-			Object.assign({}, payloadBase, { text: text }),
+			Object.assign({}, payloadBase, { text: detailText }),
 		);
-		LoggerUtil.info("Slack 詳細通知（sheetなし・単一投稿）送信完了");
+		LoggerUtil.info("Slack 詳細通知（sheetなし）: 内訳送信完了");
 	} catch (e) {
 		LoggerUtil.error(e);
 		throw e;
@@ -250,21 +255,19 @@ SlackNotifyService.notifyDiffResultSummaryWithUrlAndDetails = (meta) => {
 		LoggerUtil.info("Slack 統合通知: 要約（+リンク）送信完了");
 
 		// 2) 内訳（先頭N件、単一投稿）
+		// ※ 件数制限はしない。buildSingleDetailPostText_ の行数・文字数制限に任せる
 		const chunks = SlackNotifyService.buildDetailBodyChunksByDiff_(meta);
-		const limited =
-			chunks.length > maxItems ? chunks.slice(0, maxItems) : chunks;
 
 		const bodyLines = [];
-		limited.forEach((c) => {
+		chunks.forEach((c) => {
 			(c.lines || []).forEach((l) => {
 				bodyLines.push(l);
 			});
 		});
 
-		const warnLine =
-			chunks.length > maxItems
-				? `差分箇所が多いです（総数：${total}）。Slack の制限の都合上、先頭 ${maxItems} 件のみ出力します。`
-				: "";
+		// Warning を表示するかの判定は buildSingleDetailPostText_ の行数・文字数制限で判定させるので、
+		// ここでは空にする
+		const warnLine = "";
 
 		const detailText = SlackNotifyService.buildSingleDetailPostText_({
 			prefixLines: [], // 統合通知は要約が別投稿
@@ -345,11 +348,19 @@ SlackNotifyService.post_ = (webhookUrl, payload) => {
 
 	try {
 		if (!webhookUrl) throw new Error("webhookUrl が空です");
-		if (!payload || typeof payload.text !== "string") {
-			throw new Error("payload.text が不正です");
+
+		// payload は text (string) または blocks (array) のいずれかを含むことを許可する
+		if (!payload || (typeof payload.text !== "string" && !Array.isArray(payload.blocks))) {
+			throw new Error("payload.text または payload.blocks が不正です");
 		}
 
-		LoggerUtil.info(`Slack POST 送信: textLength=${payload.text.length}`);
+		const textLength = payload.text
+			? payload.text.length
+			: payload.blocks
+			? JSON.stringify(payload.blocks).length
+			: 0;
+
+		LoggerUtil.info(`Slack POST 送信: textLength=${textLength}`);
 
 		const res = UrlFetchApp.fetch(webhookUrl, {
 			method: "post",
