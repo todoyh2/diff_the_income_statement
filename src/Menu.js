@@ -60,8 +60,9 @@ function onOpen() {
 
       .addSeparator()
       // --- Archive ---
-      .addItem('古いSnapshotをアーカイブ（CSV出力）', 'menuArchiveOldSnapshots')
-      .addItem('アーカイブから復元（CSV -> 新規シート）', 'menuRestoreFromArchive')
+        .addItem('古いSnapshotをアーカイブ（dryRun）', 'menuArchiveOldSnapshotsDryRun')
+        .addItem('古いSnapshotをアーカイブ（CSV出力）', 'menuArchiveOldSnapshots')
+        .addItem('アーカイブから復元（CSV -> 新規シート）', 'menuRestoreFromArchive')
 
       .addToUi();
 
@@ -87,6 +88,25 @@ function menuArchiveOldSnapshots() {
     // dryRun=false で本実行（削除は Config のフラグに従う）
     SnapshotArchiveService.archiveOldSnapshots({ dryRun: false });
     LoggerUtil.info('古いSnapshotのアーカイブ処理を実行しました');
+  } catch (e) {
+    LoggerUtil.error(e);
+    throw e;
+  } finally {
+    LoggerUtil.end(fn);
+  }
+}
+
+/**
+ * dryRun メニュー用ハンドラ
+ */
+function menuArchiveOldSnapshotsDryRun() {
+  const fn = 'menuArchiveOldSnapshotsDryRun';
+  LoggerUtil.start(fn);
+
+  try {
+    const res = SnapshotArchiveService.archiveOldSnapshots({ dryRun: true });
+    const ui = SpreadsheetApp.getUi();
+    ui.alert(`Archive dry run 完了\narchived=${res.archived.length} files\nskipped=${res.skipped.length} files`);
   } catch (e) {
     LoggerUtil.error(e);
     throw e;

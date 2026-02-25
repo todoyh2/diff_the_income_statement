@@ -264,3 +264,24 @@ SnapshotArchiveService.listArchiveFiles = () => {
 		LoggerUtil.end(fn);
 	}
 };
+
+/**
+ * dryRun 用ユーティリティ（UI から呼べる）
+ * - archiveOldSnapshots({dryRun:true}) を実行し、結果をダイアログで表示する
+ */
+SnapshotArchiveService.runArchiveDryRun = () => {
+	const fn = 'SnapshotArchiveService.runArchiveDryRun';
+	LoggerUtil.start(fn);
+
+	try {
+		const res = SnapshotArchiveService.archiveOldSnapshots({ dryRun: true });
+		const ui = SpreadsheetApp.getUi();
+		ui.alert(`Archive dry run 完了\narchived=${res.archived.length} files\nskipped=${res.skipped.length} files`);
+		return res;
+	} catch (e) {
+		LoggerUtil.error(e);
+		throw e;
+	} finally {
+		LoggerUtil.end(fn);
+	}
+};
