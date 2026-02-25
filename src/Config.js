@@ -51,6 +51,20 @@ const SNAPSHOT_DATA_START_ROW = SOURCE_DATA_START_ROW + SNAPSHOT_META_ROWS;
 const META_BG_COLOR = '#eeeeee';
 
 /* ============================================================
+ * Snapshot Archive 設定
+ * ============================================================
+ */
+
+/** 古い Snapshot をアーカイブする保持日数（日） */
+const SNAPSHOT_ARCHIVE_RETENTION_DAYS = 40;
+
+/** アーカイブ保存先フォルダ名（Google Drive） */
+const SNAPSHOT_ARCHIVE_FOLDER_NAME = 'snapshot_archive';
+
+/** アーカイブ後に元シートを削除するか（運用安定化までは false に） */
+const SNAPSHOT_ARCHIVE_DELETE_ENABLED = false;
+
+/* ============================================================
  * diff 設定
  * ============================================================
  */

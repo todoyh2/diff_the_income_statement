@@ -58,10 +58,53 @@ function onOpen() {
       // --- Slack Only ---
       .addItem('Slack通知（任意2シートDiff・sheet出力なし）', 'menuSlackNotifyManualDiffOnly')
 
+      .addSeparator()
+      // --- Archive ---
+      .addItem('古いSnapshotをアーカイブ（CSV出力）', 'menuArchiveOldSnapshots')
+      .addItem('アーカイブから復元（CSV -> 新規シート）', 'menuRestoreFromArchive')
+
       .addToUi();
 
     LoggerUtil.info('カスタムメニューを追加しました');
 
+  } catch (e) {
+    LoggerUtil.error(e);
+    throw e;
+  } finally {
+    LoggerUtil.end(fn);
+  }
+}
+
+/**
+ * @description
+ * 手動で古い Snapshot をアーカイブ（CSV 出力）するメニューハンドラ
+ */
+function menuArchiveOldSnapshots() {
+  const fn = 'menuArchiveOldSnapshots';
+  LoggerUtil.start(fn);
+
+  try {
+    // dryRun=false で本実行（削除は Config のフラグに従う）
+    SnapshotArchiveService.archiveOldSnapshots({ dryRun: false });
+    LoggerUtil.info('古いSnapshotのアーカイブ処理を実行しました');
+  } catch (e) {
+    LoggerUtil.error(e);
+    throw e;
+  } finally {
+    LoggerUtil.end(fn);
+  }
+}
+
+/**
+ * @description
+ * アーカイブから CSV を選んで復元するメニューハンドラ
+ */
+function menuRestoreFromArchive() {
+  const fn = 'menuRestoreFromArchive';
+  LoggerUtil.start(fn);
+
+  try {
+    SnapshotArchiveService.restoreFromArchivePrompt();
   } catch (e) {
     LoggerUtil.error(e);
     throw e;
