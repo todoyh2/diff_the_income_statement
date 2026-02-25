@@ -175,14 +175,13 @@ MainService.runDiffForSlackOnlyManual = (
 		// 3) 要約件数
 		const summary = MainService.buildDiffSummary_(diffs);
 
-		// 4) Slack送信（入口を一本化）
-		SlackNotifyService.notifyDiffResult({
+		// 4) Slack送信（sheet出力なしなので詳細情報を投稿）
+		SlackNotifyService.notifyDiffResultDetailOnly({
 			prev: prevSheetName,
 			curr: currSheetName,
 			summary: summary,
 			diffs: diffs,
 			headers: headers,
-			// sheet出力なしなので diffSheets は渡さない（=リンク欄なし）
 			channel: channel,
 		});
 
